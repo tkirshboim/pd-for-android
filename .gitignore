@@ -45,3 +45,5 @@ proguard/
 
 # NetBeans project files
 .nb-gradle/
+
+.externalNativeBuild

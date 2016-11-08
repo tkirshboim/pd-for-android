@@ -20,14 +20,15 @@ android {
         targetSdkVersion 23
         versionCode 1
         versionName version
+        ndk {
+            abiFilters 'x86', 'armeabi', 'armeabi-v7a'
+        }
     }
 
     sourceSets {
         main {
             manifest.srcFile 'AndroidManifest.xml'
             java.srcDirs = ['src', 'jni/libpd/java']
-            jniLibs.srcDir 'libs' //set .so files location to libs
-            jni.srcDirs = [] //disable automatic ndk-build call
             res.srcDirs = ['res']
             assets.srcDirs = ['assets']
         }
@@ -42,34 +43,6 @@ android {
         release.setRoot('build-types/release')
     }
 
-    tasks.create(name: 'buildNative', type: Exec, description: 'Compile JNI source via NDK') {
-        commandLine getNdkBuildExecutablePath(),
-                '-C', file('jni').absolutePath,
-                '-j', Runtime.runtime.availableProcessors(),
-                'all',
-                'NDK_DEBUG=1'
-    }
-
-    // After ndk-build, copy libexpr.so to libexpr_tilde.so and libfexpr_tilde.so
-    buildNative.doLast {
-        def src = 'libexpr.so'
-        file('libs').eachDir() { dir ->
-            println "Cloning $src in $dir"
-            copy { from(dir) into(dir) include(src) rename(src, 'libexpr_tilde.so') }
-            copy { from(dir) into(dir) include(src) rename(src, 'libfexpr_tilde.so') }
-        }
-    }
-
-    tasks.create(name: 'cleanNative', type: Exec, description: 'Clean JNI object files') {
-        commandLine getNdkBuildExecutablePath(), '-C', file('jni').absolutePath, 'clean'
-    }
-
-    clean.dependsOn 'cleanNative'
-
-    tasks.withType(JavaCompile) {
-        compileTask -> compileTask.dependsOn 'buildNative'
-    }
-
     libraryVariants.all { variant ->
         variant.outputs.each { output ->
             File outputFile = output.outputFile
@@ -79,20 +52,12 @@ android {
             }
         }
     }
-}
 
-def getNdkBuildExecutablePath() {
-    File ndkDir = android.ndkDirectory
-    if (ndkDir == null) {
-        throw new Exception('NDK location not found. Define location with ndk.dir in the ' +
-                'local.properties file or with an ANDROID_NDK_HOME environment variable.')
+    externalNativeBuild {
+        cmake {
+            path 'jni/CMakeLists.txt'
+        }
     }
-    def isWindows = System.properties['os.name'].toLowerCase().contains('windows')
-    def ndkBuildFile = new File(ndkDir, isWindows ? 'ndk-build.cmd' : 'ndk-build')
-    if (!ndkBuildFile.exists()) {
-        throw new Exception("ndk-build executable not found: $ndkBuildFile.absolutePath")
-    }
-    ndkBuildFile.absolutePath
 }
 
 def siteUrl = 'https://github.com/libpd/pd-for-android'
